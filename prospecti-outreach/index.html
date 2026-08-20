@@ -168,7 +168,7 @@
 <div id="lead"><div class="lead-in" id="leadIn"></div></div>
 
 <script>
-const BUILD='11';
+const BUILD='12';
 const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
 const STATUSES=["Not contacted","Contacted","No answer","Follow up","Interested","Meeting","In progress","Won","Lost"];
 const SCLASS={"Not contacted":"st-neutral","Contacted":"st-gold","No answer":"st-neutral","Follow up":"st-gold","Interested":"st-gold","Meeting":"st-gold","In progress":"st-gold","Won":"st-won","Lost":"st-lost"};
@@ -277,7 +277,7 @@ function renderLead(cui){
   const prio=(r.prio||[]).map(p=>'<span class="pchip">'+esc(p)+'</span>').join('');
   const tags=(r.tags||[]).map(x=>'<span class="tag">'+esc(x)+'</span>').join('');
   let qual='';for(const q of (r.qual||[])){const v=q.val==='DA'?('DA'+(q.limit?' · '+q.limit:'')):q.val;qual+=kvRow(q.label,v,q.val==='DA'?'da':q.val==='NU'?'nu':'');}
-  let fin=kvRow('Revenue (CRM)',nf.format(r.turnover)+' RON');
+  let fin=kvRow('Revenue (CRM)',nf.format(r.turnover)+' RON'+(r.revDate?' (as of '+r.revDate+')':''));
   if(r.rev)fin+=kvRow('Revenue'+(r.revYear?' ('+r.revYear+')':''),r.rev);
   if(r.employees)fin+=kvRow('Employees'+(r.empYear?' ('+r.empYear+')':''),r.employees);
   let other='';for(const [k,v] of (r.other||[]))other+=kvRow(k,v);
@@ -294,6 +294,7 @@ function renderLead(cui){
       +(prio?'<div class="sec"><h3>Priorities</h3><div class="prio-chips">'+prio+'</div></div>':'')
       +(tags?'<div class="sec"><h3>Signals</h3><div class="prio-chips">'+tags+'</div></div>':'')
       +(other?'<div class="sec full"><h3>Other CRM fields</h3><div class="kv">'+other+'</div></div>':'')
+      +(r.raw&&r.raw.length?'<div class="sec full"><h3>All CRM fields</h3><div class="kv">'+r.raw.map(function(x){return kvRow(x[0],x[1]);}).join('')+'</div></div>':'')
       +'<div class="sec full enrich"><div class="lbl">Enrichment</div><div class="txt">Enrichment data (firmographics, signals, scoring) will be added here per lead.</div></div>'
     +'</div>';
   el.classList.add('show');el.scrollTop=0;

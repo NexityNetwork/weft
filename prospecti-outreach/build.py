@@ -90,6 +90,20 @@ def parse_notes(t):
     o['website'] = website_from(web_hint, o['emails'])
     return o
 
+# clean spreadsheet headers -> English labels for the complete "All CRM fields" dump. None = the notes
+# blob, which is fully parsed into the sections above, so it is not dumped again here.
+LABELS = {
+    'Subiect': 'Subject', 'CUI': 'CUI', 'Companie': 'Company', 'Cifră de afaceri': 'Revenue (CRM)',
+    'Ultima dată a cifrei de afaceri': 'Revenue date', 'Campanie': 'Campaign',
+    'Descriere prioritati campanie': None, 'Data scadenței': 'Due date', 'Responsabil': 'Owner',
+    'Dată a celei mai recente activități': 'Last activity', 'Contactat?': 'Contacted (CRM)',
+    'Motiv stare': 'Status reason (CRM)', 'Status detaliat': 'Detailed status (CRM)', 'CIC': 'CIC',
+    'Județ': 'County', 'Oraș': 'City', 'Stare client': 'Client state', 'Echipă L1': 'Team L1',
+    'Apel/intalnire finalizata': 'Call/meeting done',
+}
+def clean_hdr(h):
+    return re.sub(r'\s*\(Companie\)', '', h).strip()
+
 def build_data(xlsx):
     wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
     ws = wb['BD CAMPANIE']
@@ -100,19 +114,29 @@ def build_data(xlsx):
         for h, i in I.items():
             if h.lower().startswith(p.lower()): return i
     C = dict(comp=I['Companie'], cui=I['CUI'], turn=gi('Cifr'), city=gi('Oraș'), county=gi('Județ'),
-             due=gi('Data scaden'), prio=gi('Descriere'), cic=gi('CIC'), lastact=gi('Dată a celei'))
+             due=gi('Data scaden'), prio=gi('Descriere'), cic=gi('CIC'), lastact=gi('Dată a celei'),
+             revdate=gi('Ultima dată'))
+    # ordered (label, column-index) for every spreadsheet column except the parsed notes blob
+    RAWCOLS = []
+    for idx, h in enumerate(hdr):
+        lab = LABELS.get(clean_hdr(h), clean_hdr(h))
+        if lab is not None:
+            RAWCOLS.append((lab, idx))
     recs = []
     for r in rows[1:]:
         try: turn = float(r[C['turn']])
         except (TypeError, ValueError): turn = 0.0
         p = parse_notes(s(r[C['prio']]))
+        raw = [[lab, (lambda v: 'n/a' if v in ('', '#N/A') else v)(s(r[idx]))] for lab, idx in RAWCOLS]
         recs.append({"company": s(r[C['comp']]), "cui": s(r[C['cui']]), "turnover": turn,
                      "city": s(r[C['city']]).title() if s(r[C['city']]) else "",
                      "county": s(r[C['county']]).title() if s(r[C['county']]) else "",
                      "due": s(r[C['due']]), "cic": s(r[C['cic']]), "lastActivity": s(r[C['lastact']]),
+                     "revDate": s(r[C['revdate']]),
                      "phones": p['phones'], "emails": p['emails'], "website": p['website'], "person": p['person'],
                      "prio": p['prio'], "qual": p['qual'], "rev": p['rev'], "revYear": p['revYear'],
-                     "employees": p['employees'], "empYear": p['empYear'], "tags": p['tags'], "other": p['other']})
+                     "employees": p['employees'], "empYear": p['empYear'], "tags": p['tags'], "other": p['other'],
+                     "raw": raw})
     meta = dict(total=len(recs), totalTurnover=sum(x['turnover'] for x in recs),
                 counties=sorted({x['county'] for x in recs if x['county']}))
     return {"meta": meta, "rows": recs}
