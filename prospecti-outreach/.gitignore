@@ -1,0 +1,7 @@
+# Contact PII and secrets never enter git; regenerate locally.
+*.xlsx
+doc.xlsx
+data.json
+worker.js
+.cfenv
+*.7z
