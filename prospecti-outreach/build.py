@@ -14,6 +14,17 @@ def s(v):
 
 EMAIL = re.compile(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}')
 PHONE = re.compile(r'0\d[\d/.\-\s]{6,}\d')
+URL = re.compile(r'(?:https?://|www\.)[A-Za-z0-9.\-]+\.[A-Za-z]{2,}', re.I)
+# free mail providers: their domain says nothing about the company having a site
+FREE = {'gmail.com', 'yahoo.com', 'yahoo.ro', 'hotmail.com', 'hotmail.ro', 'outlook.com', 'outlook.ro',
+        'icloud.com', 'msn.com', 'live.com', 'aol.com', 'protonmail.com', 'mail.ru', 'yandex.ru'}
+
+def site_from(text, emails):
+    """Website is not a CRM column: take an explicit URL from the notes, else infer from a corporate email domain."""
+    m = URL.search(text or '')
+    site = m.group(0) if m else next((e.split('@')[-1] for e in emails if e.split('@')[-1].lower() not in FREE), '')
+    site = re.sub(r'^https?://', '', site, flags=re.I).strip().rstrip('/.,;')
+    return re.sub(r'^www\.', '', site, flags=re.I).lower()
 
 # fact keys that duplicate other sections (contact / location) and must not repeat in "details"
 _DROP = ('localitate', 'mobil', 'telefon', 'fax', 'email', 'persoana de contact', 'persoană de contact', 'date de contact')
@@ -50,6 +61,7 @@ def parse_notes(t):
             out["extra"].append(raw.lstrip('- ').strip())
     out["phones"] = list(dict.fromkeys(phones))
     out["emails"] = list(dict.fromkeys(emails))
+    out["website"] = site_from(t, out["emails"])
     return out
 
 def build_data(xlsx):
@@ -73,7 +85,7 @@ def build_data(xlsx):
                      "county": s(r[C['county']]).title() if s(r[C['county']]) else "",
                      "due": s(r[C['due']]), "cic": s(r[C['cic']]), "lastActivity": s(r[C['lastact']]),
                      "phones": p["phones"], "emails": p["emails"], "prio": p["prio"], "facts": p["facts"],
-                     "person": p["person"], "extra": p["extra"]})
+                     "person": p["person"], "extra": p["extra"], "website": p["website"]})
     meta = dict(total=len(recs), totalTurnover=sum(x['turnover'] for x in recs),
                 counties=sorted({x['county'] for x in recs if x['county']}))
     return {"meta": meta, "rows": recs}

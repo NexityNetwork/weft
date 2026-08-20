@@ -153,7 +153,7 @@
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="q" type="text" placeholder="Search company, CUI or city" autocomplete="off">
     </div>
-    <div id="ddCounty"></div><div id="ddStatus"></div>
+    <div id="ddCounty"></div><div id="ddStatus"></div><div id="ddWebsite"></div>
     <div class="count" id="count"></div>
   </div>
   <div class="tablewrap">
@@ -166,7 +166,7 @@
 <div id="lead"><div class="lead-in" id="leadIn"></div></div>
 
 <script>
-const BUILD='9';
+const BUILD='10';
 const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
 const STATUSES=["Not contacted","Contacted","No answer","Follow up","Interested","Meeting","In progress","Won","Lost"];
 const SCLASS={"Not contacted":"st-neutral","Contacted":"st-gold","No answer":"st-neutral","Follow up":"st-gold","Interested":"st-gold","Meeting":"st-gold","In progress":"st-gold","Won":"st-won","Lost":"st-lost"};
@@ -180,7 +180,7 @@ const COLS=[
   {k:'status',t:'Status',cls:'status'},
 ];
 let DATA=[],BYCUI={},VIEW=[],SMAP={},sortKey='turnover',sortDir=-1;
-let fCounty='',fStatus='',META={};
+let fCounty='',fStatus='',fWeb='',META={};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function digits(p){return String(p).replace(/\D/g,'');}
@@ -206,6 +206,8 @@ function apply(){
   VIEW=DATA.filter(r=>{
     if(fCounty&&r.county!==fCounty)return false;
     if(fStatus&&statusOf(r.cui)!==fStatus)return false;
+    if(fWeb==='Has website'&&!r.website)return false;
+    if(fWeb==='No website'&&r.website)return false;
     if(q){const hay=(r.company+' '+r.cui+' '+r.city).toLowerCase();if(!hay.includes(q))return false;}
     return true;
   });
@@ -262,10 +264,11 @@ function renderLead(cui){
   const r=BYCUI[cui],el=document.getElementById('lead'),box=document.getElementById('leadIn');
   if(!r){el.classList.remove('show');return;}
   let contact;
-  if((r.phones&&r.phones.length)||(r.emails&&r.emails.length)){
+  if((r.phones&&r.phones.length)||(r.emails&&r.emails.length)||r.person||r.website){
     contact='<div class="contact-grid">';
     for(const p of (r.phones||[]))contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></div><div class="txt"><div class="lbl">Phone</div><a href="'+telHref(p)+'">'+esc(fmtPhone(p))+'</a></div></div>';
     for(const mm of (r.emails||[]))contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg></div><div class="txt"><div class="lbl">Email</div><a class="mail" href="mailto:'+esc(mm)+'">'+esc(mm)+'</a></div></div>';
+    if(r.website)contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg></div><div class="txt"><div class="lbl">Website</div><a class="mail" href="https://'+esc(r.website)+'" target="_blank" rel="noopener">'+esc(r.website)+'</a></div></div>';
     if(r.person)contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div class="txt"><div class="lbl">Contact person</div><span class="val">'+esc(r.person)+'</span></div></div>';
     contact+='</div>';
   } else contact='<div class="contact-none">No public contact details.</div>';
@@ -294,6 +297,7 @@ Promise.all([fetch('data.json?b='+BUILD).then(r=>r.json()),fetch('api/statuses')
   DATA=d.rows;DATA.forEach(r=>BYCUI[r.cui]=r);META=d.meta;SMAP=sm||{};
   dropdown('ddCounty',META.counties,'All counties',v=>{fCounty=v;apply();});
   dropdown('ddStatus',STATUSES,'All statuses',v=>{fStatus=v;apply();});
+  dropdown('ddWebsite',['Has website','No website'],'Any website',v=>{fWeb=v;apply();});
   buildHead();
   document.getElementById('q').addEventListener('input',apply);
   apply();route();
