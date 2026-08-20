@@ -14,55 +14,81 @@ def s(v):
 
 EMAIL = re.compile(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}')
 PHONE = re.compile(r'0\d[\d/.\-\s]{6,}\d')
-URL = re.compile(r'(?:https?://|www\.)[A-Za-z0-9.\-]+\.[A-Za-z]{2,}', re.I)
-# free mail providers: their domain says nothing about the company having a site
+URL = re.compile(r'(?:https?://|www\.)?[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+\.[A-Za-z]{2,}', re.I)
 FREE = {'gmail.com', 'yahoo.com', 'yahoo.ro', 'hotmail.com', 'hotmail.ro', 'outlook.com', 'outlook.ro',
         'icloud.com', 'msn.com', 'live.com', 'aol.com', 'protonmail.com', 'mail.ru', 'yandex.ru'}
 
-def site_from(text, emails):
-    """Website is not a CRM column: take an explicit URL from the notes, else infer from a corporate email domain."""
-    m = URL.search(text or '')
-    site = m.group(0) if m else next((e.split('@')[-1] for e in emails if e.split('@')[-1].lower() not in FREE), '')
-    site = re.sub(r'^https?://', '', site, flags=re.I).strip().rstrip('/.,;')
+# CRM note key (parentheticals + year stripped, lowercased) -> (bucket, clean English label)
+KNOWN = {
+    'potential onboarding digital': ('qual', 'Digital onboarding'),
+    'eligibil ovd digital': ('qual', 'OVD Digital'),
+    'eligibil credit smart business': ('qual', 'Credit Smart Business'),
+    'eligibil cc digital': ('qual', 'CC Digital'),
+    'interactiuni o.crm in ultimele 3 luni': ('qual', 'CRM contact, last 3 months'),
+    'cifra de afaceri': ('rev', None), 'nr. salariati': ('emp', None), 'nr salariati': ('emp', None),
+    'localitate': ('skip', None), 'judet': ('skip', None),
+    'persoana de contact': ('person', None), 'mobil': ('phone', None), 'telefon': ('phone', None),
+    'email': ('email', None), 'mail': ('email', None), 'web': ('web', None), 'website': ('web', None),
+}
+QUAL_ORDER = ['Digital onboarding', 'OVD Digital', 'Credit Smart Business', 'CC Digital', 'CRM contact, last 3 months']
+
+def phones_in(text):
+    out = []
+    for pm in PHONE.findall(text or ''):
+        if 9 <= len(re.sub(r'\D', '', pm)) <= 12: out.append(re.sub(r'\s+', ' ', pm.strip().strip(',;')))
+    return out
+
+def website_from(web_hint, emails):
+    site = web_hint or next((e.split('@')[-1] for e in emails if e.split('@')[-1].lower() not in FREE), '')
+    site = re.sub(r'^https?://', '', site, flags=re.I).strip().strip('.,;/ ')
     return re.sub(r'^www\.', '', site, flags=re.I).lower()
 
-# fact keys that duplicate other sections (contact / location) and must not repeat in "details"
-_DROP = ('localitate', 'mobil', 'telefon', 'fax', 'email', 'persoana de contact', 'persoană de contact', 'date de contact')
-
 def parse_notes(t):
-    out = {"phones": [], "emails": [], "prio": [], "facts": [], "person": "", "extra": []}
-    if not t: return out
-    emails = list(dict.fromkeys(EMAIL.findall(t)))
-    out["prio"] = [m.group(1).strip() for m in re.finditer(r'Prio\s*\d+\s*:\s*([^;\n]+)', t)]
-    mc = re.search(r'[Dd]ate de contact[^:]*:\s*(.+)', t)
-    phones = []
-    for pm in PHONE.findall(mc.group(1) if mc else t):
-        d = re.sub(r'\D', '', pm)
-        if 9 <= len(d) <= 12: phones.append(re.sub(r'\s+', ' ', pm.strip().strip(',;')))
+    """Turn the free-text CRM note into fully structured, labelled fields. Nothing is discarded:
+    anything unrecognised lands in `tags` (free lines) or `other` (unknown key:value)."""
+    o = {'phones': [], 'emails': [], 'website': '', 'person': '',
+         'prio': [], 'qual': [], 'rev': '', 'revYear': '', 'employees': '', 'empYear': '', 'tags': [], 'other': []}
+    if not t: return o
+    phones, emails, web_hint = [], [], ''
+    qual = {}
     for line in t.splitlines():
         raw = line.strip()
         if not raw: continue
-        low = raw.lower()
-        if re.match(r'-?\s*(recomandari abordare|informatii companie|date de contact)', low): continue
-        if 'prio' in low and ':' in raw: continue
-        m = re.match(r'^-?\s*([^:]{2,60}?):\s*(.+)$', raw)
-        if m:
-            k, v = m.group(1).strip(), m.group(2).strip().rstrip(',')
-            kl = k.lower()
-            if kl.startswith(('persoana de contact', 'persoană de contact')): out["person"] = v; continue
-            if kl.startswith('mobil'):
-                for pm in PHONE.findall(v):
-                    if 9 <= len(re.sub(r'\D', '', pm)) <= 12: phones.append(pm.strip())
-                continue
-            if kl.startswith('email'): emails += EMAIL.findall(v); continue
-            if kl.startswith(_DROP): continue
-            if v and len(k) <= 48: out["facts"].append([k, v]); continue
-        else:
-            out["extra"].append(raw.lstrip('- ').strip())
-    out["phones"] = list(dict.fromkeys(phones))
-    out["emails"] = list(dict.fromkeys(emails))
-    out["website"] = site_from(t, out["emails"])
-    return out
+        low = raw.lower().lstrip('- ').strip()
+        if low.startswith(('recomandari abordare', 'informatii companie', 'date de contact suplimentare')): continue
+        m = re.match(r'^-?\s*([^:]{2,70}?):\s*(.*)$', raw)
+        if not m:
+            o['tags'].append(raw.lstrip('- ').strip()); continue
+        key, val = m.group(1).strip(), m.group(2).strip().rstrip(',').strip()
+        klow = key.lower()
+        if klow.startswith('prio'):
+            o['prio'] += [x.strip() for x in re.split(r';', re.sub(r'Prio\s*\d+\s*:', '', 'Prio 0:' + val)) if x.strip()]
+            continue
+        if klow.startswith('date de contact publice'):
+            phones += phones_in(val); continue
+        yr = re.search(r'\((\d{4})\)', key)
+        norm = re.sub(r'\([^)]*\)', '', klow).strip().rstrip(':').strip()
+        bucket = KNOWN.get(norm)
+        if not bucket:
+            if val: o['other'].append([key, val])   # unknown but shown, never dropped
+            continue
+        b, label = bucket
+        if b == 'phone':   phones += phones_in(val)
+        elif b == 'email': emails += EMAIL.findall(val)
+        elif b == 'person': o['person'] = o['person'] or val
+        elif b == 'web':   web_hint = web_hint or val
+        elif b == 'rev':   o['rev'], o['revYear'] = (o['rev'] or val), (o['revYear'] or (yr.group(1) if yr else ''))
+        elif b == 'emp':   o['employees'], o['empYear'] = (o['employees'] or val), (o['empYear'] or (yr.group(1) if yr else ''))
+        elif b == 'qual':
+            da = 'DA' if val.upper().startswith('DA') else 'NU' if val.upper().startswith('NU') else val
+            lim = re.search(r'limit[ae]:?\s*(.+)$', val, re.I)
+            qual[label] = {'label': label, 'val': da, 'limit': lim.group(1).strip() if lim else ''}
+    o['prio'] = [p for p in dict.fromkeys(o['prio']) if p]
+    o['qual'] = [qual[l] for l in QUAL_ORDER if l in qual]
+    o['phones'] = list(dict.fromkeys(phones))
+    o['emails'] = list(dict.fromkeys(e for e in emails if e))
+    o['website'] = website_from(web_hint, o['emails'])
+    return o
 
 def build_data(xlsx):
     wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
@@ -74,18 +100,19 @@ def build_data(xlsx):
         for h, i in I.items():
             if h.lower().startswith(p.lower()): return i
     C = dict(comp=I['Companie'], cui=I['CUI'], turn=gi('Cifr'), city=gi('Oraș'), county=gi('Județ'),
-             status=I['Status detaliat'], due=gi('Data scaden'), prio=gi('Descriere'), cic=gi('CIC'), lastact=gi('Dată a celei'))
+             due=gi('Data scaden'), prio=gi('Descriere'), cic=gi('CIC'), lastact=gi('Dată a celei'))
     recs = []
     for r in rows[1:]:
         try: turn = float(r[C['turn']])
         except (TypeError, ValueError): turn = 0.0
-        note = s(r[C['prio']]); p = parse_notes(note)
+        p = parse_notes(s(r[C['prio']]))
         recs.append({"company": s(r[C['comp']]), "cui": s(r[C['cui']]), "turnover": turn,
                      "city": s(r[C['city']]).title() if s(r[C['city']]) else "",
                      "county": s(r[C['county']]).title() if s(r[C['county']]) else "",
                      "due": s(r[C['due']]), "cic": s(r[C['cic']]), "lastActivity": s(r[C['lastact']]),
-                     "phones": p["phones"], "emails": p["emails"], "prio": p["prio"], "facts": p["facts"],
-                     "person": p["person"], "extra": p["extra"], "website": p["website"]})
+                     "phones": p['phones'], "emails": p['emails'], "website": p['website'], "person": p['person'],
+                     "prio": p['prio'], "qual": p['qual'], "rev": p['rev'], "revYear": p['revYear'],
+                     "employees": p['employees'], "empYear": p['empYear'], "tags": p['tags'], "other": p['other']})
     meta = dict(total=len(recs), totalTurnover=sum(x['turnover'] for x in recs),
                 counties=sorted({x['county'] for x in recs if x['county']}))
     return {"meta": meta, "rows": recs}
@@ -122,8 +149,7 @@ def main():
     data = build_data(xlsx)
     json.dump(data, open(os.path.join(here, 'data.json'), 'w'), ensure_ascii=False)
     html = open(os.path.join(here, 'index.html'), 'rb').read()
-    b64 = base64.b64encode(html).decode()
-    worker = WORKER_TMPL % (json.dumps(data, ensure_ascii=False), b64)
+    worker = WORKER_TMPL % (json.dumps(data, ensure_ascii=False), base64.b64encode(html).decode())
     open(os.path.join(here, 'worker.js'), 'w').write(worker)
     print(f"rows={data['meta']['total']} worker.js={len(worker.encode())}B")
 

@@ -139,6 +139,8 @@
   .kv .v.da{color:var(--gold);font-weight:600}
   .prio-chips{display:flex;flex-wrap:wrap;gap:8px}
   .pchip{background:rgba(230,198,127,.16);color:var(--gold);border-radius:8px;padding:5px 11px;font-size:13px;font-weight:600}
+  .kv .v.nu{color:var(--ink2)}
+  .tag{background:rgba(245,231,201,.08);color:var(--ink2);border-radius:8px;padding:5px 11px;font-size:13px;font-weight:500}
   .note-raw{white-space:pre-wrap;color:var(--ink);font-size:14px;line-height:1.68;background:rgba(0,0,0,.2);border-radius:11px;padding:16px 18px}
   .enrich .lbl{font-family:var(--serif);font-size:12.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--gold-dim)}
   .enrich .txt{color:var(--ink2);font-size:13.5px;margin-top:6px}
@@ -166,7 +168,7 @@
 <div id="lead"><div class="lead-in" id="leadIn"></div></div>
 
 <script>
-const BUILD='10';
+const BUILD='11';
 const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
 const STATUSES=["Not contacted","Contacted","No answer","Follow up","Interested","Meeting","In progress","Won","Lost"];
 const SCLASS={"Not contacted":"st-neutral","Contacted":"st-gold","No answer":"st-neutral","Follow up":"st-gold","Interested":"st-gold","Meeting":"st-gold","In progress":"st-gold","Won":"st-won","Lost":"st-lost"};
@@ -272,8 +274,13 @@ function renderLead(cui){
     if(r.person)contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div class="txt"><div class="lbl">Contact person</div><span class="val">'+esc(r.person)+'</span></div></div>';
     contact+='</div>';
   } else contact='<div class="contact-none">No public contact details.</div>';
-  let facts='';for(const [k,v] of (r.facts||[]))facts+=kvRow(k,v,v==='DA'?'da':'');
   const prio=(r.prio||[]).map(p=>'<span class="pchip">'+esc(p)+'</span>').join('');
+  const tags=(r.tags||[]).map(x=>'<span class="tag">'+esc(x)+'</span>').join('');
+  let qual='';for(const q of (r.qual||[])){const v=q.val==='DA'?('DA'+(q.limit?' · '+q.limit:'')):q.val;qual+=kvRow(q.label,v,q.val==='DA'?'da':q.val==='NU'?'nu':'');}
+  let fin=kvRow('Revenue (CRM)',nf.format(r.turnover)+' RON');
+  if(r.rev)fin+=kvRow('Revenue'+(r.revYear?' ('+r.revYear+')':''),r.rev);
+  if(r.employees)fin+=kvRow('Employees'+(r.empYear?' ('+r.empYear+')':''),r.employees);
+  let other='';for(const [k,v] of (r.other||[]))other+=kvRow(k,v);
   box.innerHTML=
     '<div class="lead-nav"><button class="btn" onclick="location.hash=\'\'">‹ Back</button></div>'
     +'<div class="lead-hero"><div class="nm">'+esc(r.company)+'</div><div class="meta">'
@@ -281,10 +288,12 @@ function renderLead(cui){
       +'<span class="tv">'+nf.format(r.turnover)+'<small>RON revenue</small></span></div></div>'
     +'<div class="contact"><h3>Contact</h3>'+contact+'</div>'
     +'<div class="sections">'
-      +(prio?'<div class="sec full"><h3>Priorities</h3><div class="prio-chips">'+prio+'</div></div>':'')
-      +((r.extra&&r.extra.length)?'<div class="sec full"><h3>Notes</h3><div class="note-raw">'+esc(r.extra.join('\n'))+'</div></div>':'')
-      +(facts?'<div class="sec"><h3>Company details</h3><div class="kv">'+facts+'</div></div>':'')
-      +'<div class="sec"><h3>Location</h3><div class="kv">'+kvRow('City',r.city)+kvRow('County',r.county)+kvRow('CIC',r.cic||'n/a')+kvRow('Last activity',r.lastActivity||'n/a')+kvRow('Due date',r.due)+'</div></div>'
+      +(qual?'<div class="sec full"><h3>Qualification</h3><div class="kv">'+qual+'</div></div>':'')
+      +'<div class="sec"><h3>Financials</h3><div class="kv">'+fin+'</div></div>'
+      +'<div class="sec"><h3>Location</h3><div class="kv">'+kvRow('City',r.city)+kvRow('County',r.county)+kvRow('CIC',r.cic||'n/a')+kvRow('Last activity',r.lastActivity||'n/a')+kvRow('Due date',r.due)+kvRow('Campaign','August 2026')+'</div></div>'
+      +(prio?'<div class="sec"><h3>Priorities</h3><div class="prio-chips">'+prio+'</div></div>':'')
+      +(tags?'<div class="sec"><h3>Signals</h3><div class="prio-chips">'+tags+'</div></div>':'')
+      +(other?'<div class="sec full"><h3>Other CRM fields</h3><div class="kv">'+other+'</div></div>':'')
       +'<div class="sec full enrich"><div class="lbl">Enrichment</div><div class="txt">Enrichment data (firmographics, signals, scoring) will be added here per lead.</div></div>'
     +'</div>';
   el.classList.add('show');el.scrollTop=0;
