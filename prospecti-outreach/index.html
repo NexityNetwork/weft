@@ -1,12 +1,9 @@
 <!doctype html>
-<html lang="ro">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Prospecți</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Prospects</title>
 <style>
   :root{
     --bg:#14100b;
@@ -21,7 +18,7 @@
     --glass2:rgba(245,231,201,.085);
     --panel:rgba(245,231,201,.06);
     --hair:rgba(233,214,174,.12);
-    --serif:"Spectral",Georgia,serif;
+    --serif:"Iowan Old Style","Charter","Palatino Linotype",Palatino,Georgia,serif;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
@@ -129,6 +126,7 @@
   .contact-item .txt a{display:block;font-family:var(--mono);font-size:18px;font-weight:600;color:var(--ink);text-decoration:none;letter-spacing:.3px}
   .contact-item .txt a:hover{color:var(--gold)}
   .contact-item .txt a.mail{font-size:15px}
+  .contact-item .txt .val{display:block;font-size:16px;font-weight:600;color:var(--ink)}
   .contact-none{color:var(--ink2);font-size:15px}
 
   .sections{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -151,10 +149,9 @@
 <body>
 <div class="wrap">
   <div class="controls">
-    <span class="brand">Prospecți</span>
     <div class="search">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="q" type="text" placeholder="Caută companie, CUI sau oraș" autocomplete="off">
+      <input id="q" type="text" placeholder="Search company, CUI or city" autocomplete="off">
     </div>
     <div id="ddCounty"></div><div id="ddStatus"></div>
     <div class="count" id="count"></div>
@@ -162,24 +159,24 @@
   <div class="tablewrap">
     <table>
       <thead><tr id="head"></tr></thead>
-      <tbody id="body"><tr><td colspan="6" class="loading">Se încarcă lista...</td></tr></tbody>
+      <tbody id="body"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
 <div id="lead"><div class="lead-in" id="leadIn"></div></div>
 
 <script>
-const BUILD='7';
-const nf=new Intl.NumberFormat('ro-RO',{maximumFractionDigits:0});
+const BUILD='9';
+const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
 const STATUSES=["Not contacted","Contacted","No answer","Follow up","Interested","Meeting","In progress","Won","Lost"];
 const SCLASS={"Not contacted":"st-neutral","Contacted":"st-gold","No answer":"st-neutral","Follow up":"st-gold","Interested":"st-gold","Meeting":"st-gold","In progress":"st-gold","Won":"st-won","Lost":"st-lost"};
 const DEF="Not contacted";
 const COLS=[
-  {k:'company',t:'Companie',cls:'company'},
+  {k:'company',t:'Company',cls:'company'},
   {k:'cui',t:'CUI',cls:'cui'},
-  {k:'turnover',t:'Cifră de afaceri',cls:'num',num:true},
-  {k:'city',t:'Oraș',cls:'city'},
-  {k:'phone',t:'Telefon',cls:'tel'},
+  {k:'turnover',t:'Revenue',cls:'num',num:true},
+  {k:'city',t:'City',cls:'city'},
+  {k:'phone',t:'Phone',cls:'tel'},
   {k:'status',t:'Status',cls:'status'},
 ];
 let DATA=[],BYCUI={},VIEW=[],SMAP={},sortKey='turnover',sortDir=-1;
@@ -195,12 +192,12 @@ function statusCtl(cui){const s=statusOf(cui);return '<button class="status-ctl 
 function cell(r,c){
   if(c.num) return '<td class="num">'+nf.format(r[c.k])+'</td>';
   if(c.k==='status') return '<td>'+statusCtl(r.cui)+'</td>';
-  if(c.k==='phone'){if(r.phones&&r.phones.length)return '<td class="tel"><a href="'+telHref(r.phones[0])+'" onclick="event.stopPropagation()">'+esc(fmtPhone(r.phones[0]))+'</a></td>';return '<td class="tel none">fără</td>';}
+  if(c.k==='phone'){if(r.phones&&r.phones.length)return '<td class="tel"><a href="'+telHref(r.phones[0])+'" onclick="event.stopPropagation()">'+esc(fmtPhone(r.phones[0]))+'</a></td>';return '<td class="tel none">none</td>';}
   return '<td class="'+c.cls+'">'+esc(r[c.k])+'</td>';
 }
 function renderList(){
   const b=document.getElementById('body');
-  if(!VIEW.length){b.innerHTML='<tr><td colspan="6" class="loading">Niciun rezultat</td></tr>';return;}
+  if(!VIEW.length){b.innerHTML='<tr><td colspan="6" class="loading">No results</td></tr>';return;}
   let h='';for(const r of VIEW){h+='<tr class="row" data-cui="'+esc(r.cui)+'">';for(const c of COLS)h+=cell(r,c);h+='</tr>';}
   b.innerHTML=h;
 }
@@ -213,7 +210,7 @@ function apply(){
     return true;
   });
   VIEW.sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(sortKey==='status'){x=statusOf(a.cui);y=statusOf(b.cui);}if(typeof x==='number'&&typeof y==='number')return(x-y)*sortDir;return String(x).localeCompare(String(y),'ro')*sortDir;});
-  document.getElementById('count').innerHTML='<b>'+nf.format(VIEW.length)+'</b> din '+nf.format(DATA.length);
+  document.getElementById('count').innerHTML='<b>'+nf.format(VIEW.length)+'</b> of '+nf.format(DATA.length);
   renderList();
 }
 function buildHead(){
@@ -264,32 +261,28 @@ function kvRow(k,v,cls){return '<div class="k">'+esc(k)+'</div><div class="v '+(
 function renderLead(cui){
   const r=BYCUI[cui],el=document.getElementById('lead'),box=document.getElementById('leadIn');
   if(!r){el.classList.remove('show');return;}
-  const idx=VIEW.findIndex(x=>x.cui===cui);
-  const prevC=idx>0?VIEW[idx-1].cui:'',nextC=(idx>=0&&idx<VIEW.length-1)?VIEW[idx+1].cui:'';
   let contact;
   if((r.phones&&r.phones.length)||(r.emails&&r.emails.length)){
     contact='<div class="contact-grid">';
-    for(const p of (r.phones||[]))contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></div><div class="txt"><div class="lbl">Telefon</div><a href="'+telHref(p)+'">'+esc(fmtPhone(p))+'</a></div></div>';
+    for(const p of (r.phones||[]))contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></div><div class="txt"><div class="lbl">Phone</div><a href="'+telHref(p)+'">'+esc(fmtPhone(p))+'</a></div></div>';
     for(const mm of (r.emails||[]))contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg></div><div class="txt"><div class="lbl">Email</div><a class="mail" href="mailto:'+esc(mm)+'">'+esc(mm)+'</a></div></div>';
+    if(r.person)contact+='<div class="contact-item"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div class="txt"><div class="lbl">Contact person</div><span class="val">'+esc(r.person)+'</span></div></div>';
     contact+='</div>';
-  } else contact='<div class="contact-none">Fără date de contact publice.</div>';
+  } else contact='<div class="contact-none">No public contact details.</div>';
   let facts='';for(const [k,v] of (r.facts||[]))facts+=kvRow(k,v,v==='DA'?'da':'');
   const prio=(r.prio||[]).map(p=>'<span class="pchip">'+esc(p)+'</span>').join('');
   box.innerHTML=
-    '<div class="lead-nav"><button class="btn" onclick="location.hash=\'\'">‹ Înapoi la listă</button>'
-    +(prevC?'<button class="btn" onclick="location.hash=\'lead/'+esc(prevC)+'\'">‹ Anterior</button>':'')
-    +(nextC?'<button class="btn" onclick="location.hash=\'lead/'+esc(nextC)+'\'">Următor ›</button>':'')
-    +'<span class="btn ghost">'+(idx>=0?(idx+1)+' din '+nf.format(VIEW.length):'')+'</span></div>'
+    '<div class="lead-nav"><button class="btn" onclick="location.hash=\'\'">‹ Back</button></div>'
     +'<div class="lead-hero"><div class="nm">'+esc(r.company)+'</div><div class="meta">'
       +statusCtl(r.cui)+'<span class="cui">CUI '+esc(r.cui)+'</span>'
-      +'<span class="tv">'+nf.format(r.turnover)+'<small>RON cifră de afaceri</small></span></div></div>'
+      +'<span class="tv">'+nf.format(r.turnover)+'<small>RON revenue</small></span></div></div>'
     +'<div class="contact"><h3>Contact</h3>'+contact+'</div>'
     +'<div class="sections">'
-      +(prio?'<div class="sec full"><h3>Priorități abordare</h3><div class="prio-chips">'+prio+'</div></div>':'')
-      +'<div class="sec full"><h3>Recomandări abordare (note CRM)</h3><div class="note-raw">'+esc(r.note||'Fără note.')+'</div></div>'
-      +(facts?'<div class="sec"><h3>Detalii companie</h3><div class="kv">'+facts+'</div></div>':'')
-      +'<div class="sec"><h3>Localizare</h3><div class="kv">'+kvRow('Oraș',r.city)+kvRow('Județ',r.county)+kvRow('CIC',r.cic||'nedisponibil')+kvRow('Ultima activitate',r.lastActivity||'nedisponibil')+kvRow('Scadență',r.due)+'</div></div>'
-      +'<div class="sec full enrich"><div class="lbl">Îmbogățire date</div><div class="txt">Datele de îmbogățire (firmografice, semnale, scoring) vor fi adăugate ulterior pentru fiecare lead.</div></div>'
+      +(prio?'<div class="sec full"><h3>Priorities</h3><div class="prio-chips">'+prio+'</div></div>':'')
+      +((r.extra&&r.extra.length)?'<div class="sec full"><h3>Notes</h3><div class="note-raw">'+esc(r.extra.join('\n'))+'</div></div>':'')
+      +(facts?'<div class="sec"><h3>Company details</h3><div class="kv">'+facts+'</div></div>':'')
+      +'<div class="sec"><h3>Location</h3><div class="kv">'+kvRow('City',r.city)+kvRow('County',r.county)+kvRow('CIC',r.cic||'n/a')+kvRow('Last activity',r.lastActivity||'n/a')+kvRow('Due date',r.due)+'</div></div>'
+      +'<div class="sec full enrich"><div class="lbl">Enrichment</div><div class="txt">Enrichment data (firmographics, signals, scoring) will be added here per lead.</div></div>'
     +'</div>';
   el.classList.add('show');el.scrollTop=0;
 }
@@ -299,12 +292,12 @@ document.getElementById('body').addEventListener('click',e=>{const tr=e.target.c
 
 Promise.all([fetch('data.json?b='+BUILD).then(r=>r.json()),fetch('api/statuses').then(r=>r.json()).catch(()=>({}))]).then(([d,sm])=>{
   DATA=d.rows;DATA.forEach(r=>BYCUI[r.cui]=r);META=d.meta;SMAP=sm||{};
-  dropdown('ddCounty',META.counties,'Toate județele',v=>{fCounty=v;apply();});
-  dropdown('ddStatus',STATUSES,'Toate stările',v=>{fStatus=v;apply();});
+  dropdown('ddCounty',META.counties,'All counties',v=>{fCounty=v;apply();});
+  dropdown('ddStatus',STATUSES,'All statuses',v=>{fStatus=v;apply();});
   buildHead();
   document.getElementById('q').addEventListener('input',apply);
   apply();route();
-}).catch(err=>{document.getElementById('body').innerHTML='<tr><td colspan="6" class="loading">Eroare la încărcare: '+esc(err.message)+'</td></tr>';});
+}).catch(err=>{document.getElementById('body').innerHTML='<tr><td colspan="6" class="loading">Failed to load: '+esc(err.message)+'</td></tr>';});
 </script>
 </body>
 </html>

@@ -15,25 +15,41 @@ def s(v):
 EMAIL = re.compile(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}')
 PHONE = re.compile(r'0\d[\d/.\-\s]{6,}\d')
 
+# fact keys that duplicate other sections (contact / location) and must not repeat in "details"
+_DROP = ('localitate', 'mobil', 'telefon', 'fax', 'email', 'persoana de contact', 'persoană de contact', 'date de contact')
+
 def parse_notes(t):
-    out = {"phones": [], "emails": [], "prio": [], "facts": []}
+    out = {"phones": [], "emails": [], "prio": [], "facts": [], "person": "", "extra": []}
     if not t: return out
-    out["emails"] = list(dict.fromkeys(EMAIL.findall(t)))
+    emails = list(dict.fromkeys(EMAIL.findall(t)))
     out["prio"] = [m.group(1).strip() for m in re.finditer(r'Prio\s*\d+\s*:\s*([^;\n]+)', t)]
     mc = re.search(r'[Dd]ate de contact[^:]*:\s*(.+)', t)
-    src = mc.group(1) if mc else t
     phones = []
-    for pm in PHONE.findall(src):
+    for pm in PHONE.findall(mc.group(1) if mc else t):
         d = re.sub(r'\D', '', pm)
         if 9 <= len(d) <= 12: phones.append(re.sub(r'\s+', ' ', pm.strip().strip(',;')))
-    out["phones"] = list(dict.fromkeys(phones))
     for line in t.splitlines():
-        m = re.match(r'^-?\s*([^:]{2,60}?):\s*(.+)$', line.strip())
+        raw = line.strip()
+        if not raw: continue
+        low = raw.lower()
+        if re.match(r'-?\s*(recomandari abordare|informatii companie|date de contact)', low): continue
+        if 'prio' in low and ':' in raw: continue
+        m = re.match(r'^-?\s*([^:]{2,60}?):\s*(.+)$', raw)
         if m:
             k, v = m.group(1).strip(), m.group(2).strip().rstrip(',')
             kl = k.lower()
-            if kl.startswith(('date de contact', 'recomandari', 'prio')): continue
-            if v and len(k) <= 48: out["facts"].append([k, v])
+            if kl.startswith(('persoana de contact', 'persoană de contact')): out["person"] = v; continue
+            if kl.startswith('mobil'):
+                for pm in PHONE.findall(v):
+                    if 9 <= len(re.sub(r'\D', '', pm)) <= 12: phones.append(pm.strip())
+                continue
+            if kl.startswith('email'): emails += EMAIL.findall(v); continue
+            if kl.startswith(_DROP): continue
+            if v and len(k) <= 48: out["facts"].append([k, v]); continue
+        else:
+            out["extra"].append(raw.lstrip('- ').strip())
+    out["phones"] = list(dict.fromkeys(phones))
+    out["emails"] = list(dict.fromkeys(emails))
     return out
 
 def build_data(xlsx):
@@ -56,7 +72,8 @@ def build_data(xlsx):
                      "city": s(r[C['city']]).title() if s(r[C['city']]) else "",
                      "county": s(r[C['county']]).title() if s(r[C['county']]) else "",
                      "due": s(r[C['due']]), "cic": s(r[C['cic']]), "lastActivity": s(r[C['lastact']]),
-                     "note": note, "phones": p["phones"], "emails": p["emails"], "prio": p["prio"], "facts": p["facts"]})
+                     "phones": p["phones"], "emails": p["emails"], "prio": p["prio"], "facts": p["facts"],
+                     "person": p["person"], "extra": p["extra"]})
     meta = dict(total=len(recs), totalTurnover=sum(x['turnover'] for x in recs),
                 counties=sorted({x['county'] for x in recs if x['county']}))
     return {"meta": meta, "rows": recs}
